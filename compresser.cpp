@@ -3,6 +3,8 @@
 #include <string>
 #include <vector>
 #include <queue>
+#include <memory>
+#include <algorithm>
 #define ascii 0x100
 using namespace std;
 
@@ -23,84 +25,146 @@ void readFile(string fileName, int (& frequency)[ascii]) {
 	}
 }
 
-struct Node { // узел
+struct Node { // узел	
 	unsigned char ch{ 0 };
 	int frequency{ 0 };
+	shared_ptr<Node> right{ nullptr };
+	shared_ptr<Node> left{ nullptr };
+
+public:
+	Node(unsigned char character, int freq) : ch(character), frequency(freq) {}
+	Node(shared_ptr<Node> l, shared_ptr<Node> r) : left(l), right(r), frequency(l->frequency + r->frequency) {}
 };
+
+struct CompareNode { // чтобы приоритетная очередь корректно сравнивала УКАЗАТЕЛИ на узлы
+	bool operator()(const shared_ptr<Node>& left, const shared_ptr<Node>& right) const {
+		return left->frequency > right->frequency;
+	}
+};
+
+void makeCodes(const shared_ptr<Node>& node, const string& prefix, vector<string>& codes) {
+	if (!node) return;
+	if (node->left == nullptr && node->right == nullptr)
+		codes[(int)node->ch] = prefix;
+	makeCodes(node->left, prefix + "0", codes);
+	makeCodes(node->right, prefix + "1", codes);
+}
+
+void printTree(const shared_ptr<Node>& node, const string& prefix = "") { // ПРОВЕРКА: дерево Хаффмана
+	if (!node) return;
+	if (node->left == nullptr && node->right == nullptr)
+		cout << "'" << node->ch << "' (" << node->frequency << ") : " << prefix << endl;
+	printTree(node->left, prefix + "0");
+	printTree(node->right, prefix + "1");
+}
+
+using queue_t = priority_queue<shared_ptr<Node>, vector<shared_ptr<Node>>, CompareNode>;
+
+void queuePushing(int(&frequency)[ascii], queue_t& queue) {
+	for (int i = 0; i < ascii; ++i) {
+		if (frequency[i] > 0) {
+			queue.push(make_shared<Node>((unsigned char)i, frequency[i]));
+		}
+	}
+}
+
+void buildTree(queue_t& queue) {
+	while (queue.size() > 1) { // тк последняя итерация 2 эл-нта => 1 эл-нт
+		shared_ptr<Node> left = queue.top(); // можно юзать auto и все ок, но я явно написал тип для лучшего понимания
+		queue.pop();
+		shared_ptr<Node> right = queue.top();
+		queue.pop();
+
+		queue.push(make_shared<Node>(left, right));
+	}
+}
+
+void frequencyTest(int(&frequency)[ascii]) { // ПРОВЕРКА: вывод сколько веса символов ascii
+	for (int i = 0; i < ascii; ++i) {
+		if (frequency[i] > 0) {
+			cout << frequency[i] << " " << (char)i << endl;
+		}
+	}
+}
+
+void codesTest(vector<string> codes) { // ПРОВЕРКА: символов и их кодов в векторе
+	for (int i = 0; i < codes.size(); ++i) {
+		cout << i << ": " << codes[i] << endl;
+	}
+}
+
+string messageToCode(const string& filename, const vector<string>& codes) {
+	string msg{ "" }; 
+	{
+		ifstream file(filename);
+		if (!file.is_open()) {
+			cerr << "Error: Cannot open file " << filename << endl;
+			return msg;
+		}
+
+		char ch;
+		while (file.get(ch)) {
+			msg += codes[(unsigned char)ch];
+		}
+		return msg;
+	}
+}
+
+void writeFile(const string& filename, int(&frequency)[ascii], const queue_t& queue, const string& message) {
+	string newFilename = filename + ".huff";
+	ofstream file(newFilename, ios::binary);
+	if (!file.is_open()) {
+		cerr << "Error: Cannot open file " << filename << endl;
+		return;
+	}
+
+	unsigned char count = count_if(frequency, frequency+ascii, [](const int& value) { return (value != 0); });
+	cout << "Count: " << (int)count << endl;
+
+	file.write(reinterpret_cast<char*>(&count), sizeof count);
+
+	for (int i = 0; i < ascii; ++i) {
+		if (frequency[i] > 0) {
+			cout << "[" << (unsigned char)i << "]" << " = " << frequency[i] << endl;
+			unsigned char ch = static_cast<unsigned char>(i);
+			file.write(reinterpret_cast<char*>(&ch), sizeof ch);
+			file.write(reinterpret_cast<char*>(&frequency[i]), sizeof frequency[i]);
+		}
+	}
+
+	int byte_count = message.size() / 8;
+	unsigned char modulo = message.size() % 8;
+
+	file.write(reinterpret_cast<char*>(&byte_count), sizeof ch);
+	file.write(reinterpret_cast<char*>(&ch), sizeof ch);
+}
 
 int main() {
 	system("chcp 1251");
 	system("cls");
 	int frequency[ascii];
-	readFile("test.txt", frequency);
+	string filename = "test.txt";
+	readFile(filename, frequency);
 
-	//for (int i = 0; i < ascii; ++i) { // ПРОВЕРКА: вывод сколько веса символов ascii
-	//	if (frequency[i] > 0) {
-	//		cout << frequency[i] << " " << (char)i << endl;
-	//	}
-	//}
+	//frequencyTest(frequency); // ПРОВЕРКА: вывод сколько веса символов ascii
 
-	priority_queue<Node, > queue;
+	queue_t queue;
 
+	queuePushing(frequency, queue);
+	buildTree(queue);
 
-//
-//	vector<Node> tree; // наше дерево (контейнер узлов)
-//	map<char, int> charMap;
-//	for (size_t i = 0; i < ascii; ++i)
-//	{
-//		if (weight[i] > 0)
-//		{
-//			tree.push_back(Node{ (char)i, -1, -1, -1, false }); // в дерево кладем узлы (самые базовые (символы))
-//			charMap[i] = tree.size() - 1;
-//			sortedWeight.insert(make_pair(weight[i], tree.size() - 1)); // tree.size-1 - индекс внутри дерева. Такой именно потому, что вставляем в конец дерева
-//		}
-//	}
-//	while (sortedWeight.size() > 1) // создает контейнер узлов (дерево Хаффмана)  
-//	{
-//		int w0 = begin(sortedWeight)->first;
-//		int n0 = begin(sortedWeight)->second;
-//		sortedWeight.erase(begin(sortedWeight));
-//		int w1 = begin(sortedWeight)->first;
-//		int n1 = begin(sortedWeight)->second;
-//		sortedWeight.erase(begin(sortedWeight));
-//		tree.push_back(Node{ '\0', -1, n0, n1, false });
-//		tree[n0].parent = tree.size() - 1;
-//		tree[n0].branch = false;
-//		tree[n1].parent = tree.size() - 1;
-//		tree[n1].branch = true;
-//		sortedWeight.insert(make_pair(w0 + w1, tree.size() - 1));
-//	}
-//
-//	vector<bool> data;
-//
-//	{ // эти скобки - область чтения содержимого файла, можно не ставить
-//		ifstream file("text.txt");
-//		char ch;
-//		while (file.get(ch)) // считывает 1 символ из файла
-//		{
-//			auto n = tree[charMap[ch]];
-//			vector<bool> compressedChar;
-//			while (n.parent != -1)
-//			{
-//				compressedChar.push_back(n.branch);
-//				n = tree[n.parent];
-//			}
-//			data.insert(end(data), compressedChar.rbegin(), compressedChar.rend()); // записываем в обратном порядке, потому что на примере. (кодируется и записывается в разных порядках)
-//		}
-//		/*file.close();*/
-//	}
-//	ofstream file("text.huff");
-//	int treeSize = tree.size();
-//	file.write((char*)&treeSize, sizeof(treeSize));
-//	for (auto i : tree)
-//		file.write((char*)&i, sizeof(i));
-//
-//	for (size_t i = 0; i <= data.size() / 8; ++i) // по идее надо i <= data.size() / 8 чтобы по всем байтам пройтись, однако выдает ошибку (g++ не выдает)
-//	{
-//		unsigned char ch = 0;
-//		for (int j = 0; j < 8; ++j)
-//			if (data[i * 8 + j])
-//				ch |= (1 << j);
-//		file.write((char*)&ch, sizeof(ch));
-//	}
+	shared_ptr<Node> root = queue.top(); // последний выживший эл-нт. Само дерево
+	
+	//printTree(root); // ПРОВЕРКА: дерево Хаффмана
+
+	vector<string> codes(0x100, "");
+
+	makeCodes(root, "", codes);
+
+	//codesTest(codes); // ПРОВЕРКА: символов и их кодов в векторе
+
+	string message = messageToCode(filename, codes);
+	//cout << message;
+
+	writeFile(filename, frequency, queue, message);
 }
