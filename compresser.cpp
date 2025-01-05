@@ -5,6 +5,7 @@
 #include <queue>
 #include <memory>
 #include <algorithm>
+#include <bitset>
 #define ascii 0x100
 using namespace std;
 
@@ -135,8 +136,20 @@ void writeFile(const string& filename, int(&frequency)[ascii], const queue_t& qu
 	int byte_count = message.size() / 8;
 	unsigned char modulo = message.size() % 8;
 
-	file.write(reinterpret_cast<char*>(&byte_count), sizeof ch);
-	file.write(reinterpret_cast<char*>(&ch), sizeof ch);
+	file.write(reinterpret_cast<char*>(&byte_count), sizeof byte_count);
+	file.write(reinterpret_cast<char*>(&modulo), sizeof modulo);
+
+	int i = 0;
+	for (; i < byte_count; ++i) {
+		bitset<8> b(message.substr(i * 8, 8));
+		unsigned char value = static_cast<unsigned char>(b.to_ulong());
+		file.write(reinterpret_cast<char*>(&value), sizeof value);
+	}
+	if (modulo > 0) {
+		bitset<8> b(message.substr(i * 8, modulo));
+		unsigned char value = static_cast<unsigned char>(b.to_ulong());
+		file.write(reinterpret_cast<char*>(&value), sizeof value);
+	}
 }
 
 int main() {
@@ -164,7 +177,7 @@ int main() {
 	//codesTest(codes); // ПРОВЕРКА: символов и их кодов в векторе
 
 	string message = messageToCode(filename, codes);
-	//cout << message;
+	cout << message << endl;
 
 	writeFile(filename, frequency, queue, message);
 }
