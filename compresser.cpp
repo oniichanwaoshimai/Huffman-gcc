@@ -35,6 +35,7 @@ struct Node { // узел
 public:
 	Node(unsigned char character, int freq) : ch(character), frequency(freq) {}
 	Node(shared_ptr<Node> l, shared_ptr<Node> r) : left(l), right(r), frequency(l->frequency + r->frequency) {}
+	unsigned char getCh() const { return ch; }
 };
 
 struct CompareNode { // чтобы приоритетная очередь корректно сравнивала УКАЗАТЕЛИ на узлы
@@ -120,13 +121,13 @@ void writeFile(const string& filename, int(&frequency)[ascii], const queue_t& qu
 	}
 
 	unsigned char count = count_if(frequency, frequency+ascii, [](const int& value) { return (value != 0); });
-	cout << "Count: " << (int)count << endl;
+	//cout << "Count: " << (int)count << endl;
 
 	file.write(reinterpret_cast<char*>(&count), sizeof count);
 
 	for (int i = 0; i < ascii; ++i) {
 		if (frequency[i] > 0) {
-			cout << "[" << (unsigned char)i << "]" << " = " << frequency[i] << endl;
+			//cout << "[" << (unsigned char)i << "]" << " = " << frequency[i] << endl;
 			unsigned char ch = static_cast<unsigned char>(i);
 			file.write(reinterpret_cast<char*>(&ch), sizeof ch);
 			file.write(reinterpret_cast<char*>(&frequency[i]), sizeof frequency[i]);
@@ -152,10 +153,92 @@ void writeFile(const string& filename, int(&frequency)[ascii], const queue_t& qu
 	}
 }
 
+void readCompressedText(string& filename,int(&frequency)[ascii], string& message) {
+	string newFilename = filename + ".huff";
+	ifstream file(newFilename, ios::binary);
+	if (!file.is_open()) {
+		cerr << "Error: Cannot open file " << filename << endl;
+		return;
+	}
+
+	unsigned char count = 0;
+	file.read(reinterpret_cast<char*>(&count), sizeof count);
+	//cout << "New count: " << (int)count << endl;
+
+	int i = 0;
+	while (i < count) {
+		unsigned char ch;
+		file.read(reinterpret_cast<char*>(&ch), sizeof ch);
+
+		int freq = 0;
+		file.read(reinterpret_cast<char*>(&freq), sizeof freq);
+		frequency[ch] = freq;
+		//cout << "[" << ch << "]" << " = " << frequency[ch] << endl;
+		++i;
+	}
+
+	/*for (int j = 0; j < ascii; ++j) {
+		if (frequency[j] > 0) {
+			cout << "[" << (char)j << "]" << " = " << frequency[j] << endl; 
+		}
+	}*/
+
+	int byte_count = 0;
+	unsigned char modulo = 0;
+
+	file.read(reinterpret_cast<char*>(&byte_count), sizeof byte_count);
+	file.read(reinterpret_cast<char*>(&modulo), sizeof modulo);
+
+	i = 0;
+	for (; i < byte_count; ++i) {
+		unsigned char byte;
+		file.read(reinterpret_cast<char*>(&byte), sizeof byte);
+
+		bitset<8> b(byte);
+		message += b.to_string();
+	}
+	if (modulo > 0) {
+		unsigned char byte;
+		file.read(reinterpret_cast<char*>(&byte), sizeof byte);
+
+		bitset<8> b(byte);
+		message += b.to_string().substr(8 - modulo, 8);
+	}
+
+	//cout << message << endl;
+}
+
+void makeChar(const shared_ptr<Node>& root, const string& message, string& text) {
+	shared_ptr<Node> node = root;
+
+	for (int i = 0; i < message.size(); ++i) {
+		char ch = message[i];
+		if (ch == '0') {
+			if (node->left != nullptr) {
+				node = node->left;
+				if (node->left == nullptr && node->right == nullptr) {
+					text += node->getCh();
+					node = root;
+				}
+			}
+		}
+		else if (ch == '1') {
+			if (node->right != nullptr) {
+				node = node->right;
+				if (node->left == nullptr && node->right == nullptr) {
+					text += node->getCh();
+					node = root;
+				}
+			}
+		}
+	}
+	cout << "Text: \"" << text << "\"";
+}
+
 int main() {
 	system("chcp 1251");
 	system("cls");
-	int frequency[ascii];
+	int frequency[ascii] = {0};
 	string filename = "test.txt";
 	readFile(filename, frequency);
 
@@ -177,7 +260,21 @@ int main() {
 	//codesTest(codes); // ПРОВЕРКА: символов и их кодов в векторе
 
 	string message = messageToCode(filename, codes);
-	cout << message << endl;
+	//cout << message << endl;
 
 	writeFile(filename, frequency, queue, message);
+
+	int frequency2[ascii] = {0};
+	string message2 = "";
+
+	readCompressedText(filename, frequency2, message2);
+
+	queue_t queue2;
+
+	queuePushing(frequency2, queue2);
+	buildTree(queue2);
+
+	shared_ptr<Node> root2 = queue2.top();
+	string text = "";
+	makeChar(root2, message2, text);
 }
