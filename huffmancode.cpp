@@ -9,10 +9,10 @@
 #define ascii 0x100
 using namespace std;
 
-void readFile(string fileName, int (& frequency)[ascii]) {
+void readFile(string fileName, int(&frequency)[ascii]) {
 	for (auto& i : frequency)
 		i = 0;
-	{ 
+	{
 		ifstream file(fileName);
 		if (!file.is_open()) {
 			cerr << "Error: Cannot open file " << fileName << endl;
@@ -96,7 +96,7 @@ void codesTest(vector<string> codes) { // ПРОВЕРКА: символов и их кодов в вектор
 }
 
 string messageToCode(const string& filename, const vector<string>& codes) {
-	string msg{ "" }; 
+	string msg{ "" };
 	{
 		ifstream file(filename);
 		if (!file.is_open()) {
@@ -120,7 +120,7 @@ void writeFile(const string& filename, int(&frequency)[ascii], const queue_t& qu
 		return;
 	}
 
-	unsigned char count = count_if(frequency, frequency+ascii, [](const int& value) { return (value != 0); });
+	unsigned char count = count_if(frequency, frequency + ascii, [](const int& value) { return (value != 0); });
 	//cout << "Count: " << (int)count << endl;
 
 	file.write(reinterpret_cast<char*>(&count), sizeof count);
@@ -153,7 +153,7 @@ void writeFile(const string& filename, int(&frequency)[ascii], const queue_t& qu
 	}
 }
 
-void readCompressedText(string& filename,int(&frequency)[ascii], string& message) {
+void readCompressedText(string& filename, int(&frequency)[ascii], string& message) {
 	string newFilename = filename + ".huff";
 	ifstream file(newFilename, ios::binary);
 	if (!file.is_open()) {
@@ -179,7 +179,7 @@ void readCompressedText(string& filename,int(&frequency)[ascii], string& message
 
 	/*for (int j = 0; j < ascii; ++j) {
 		if (frequency[j] > 0) {
-			cout << "[" << (char)j << "]" << " = " << frequency[j] << endl; 
+			cout << "[" << (char)j << "]" << " = " << frequency[j] << endl;
 		}
 	}*/
 
@@ -232,49 +232,68 @@ void makeChar(const shared_ptr<Node>& root, const string& message, string& text)
 			}
 		}
 	}
-	cout << "Text: \"" << text << "\"";
+	cout << "Text: \"" << text << "\"" << endl;
 }
 
 int main() {
 	system("chcp 1251");
 	system("cls");
-	int frequency[ascii] = {0};
+	bool Flag = true;
+	string ans = "";
 	string filename = "test.txt";
-	readFile(filename, frequency);
 
-	//frequencyTest(frequency); // ПРОВЕРКА: вывод сколько веса символов ascii
+	while (Flag) {
+		cout << "1) Compresser" << endl;
+		cout << "2) Decompresser" << endl;
+		cout << "3) Filename" << endl;
+		cout << "4) Exit: ";
+		cin >> ans;
+		if (ans == "1") {
+			int frequency[ascii] = { 0 };
+			readFile(filename, frequency);
 
-	queue_t queue;
+			queue_t queue;
 
-	queuePushing(frequency, queue);
-	buildTree(queue);
+			queuePushing(frequency, queue);
+			buildTree(queue);
 
-	shared_ptr<Node> root = queue.top(); // последний выживший эл-нт. Само дерево
-	
-	//printTree(root); // ПРОВЕРКА: дерево Хаффмана
+			shared_ptr<Node> root = queue.top(); // последний выживший эл-нт. Само дерево
 
-	vector<string> codes(0x100, "");
+			vector<string> codes(0x100, "");
 
-	makeCodes(root, "", codes);
+			makeCodes(root, "", codes);
 
-	//codesTest(codes); // ПРОВЕРКА: символов и их кодов в векторе
+			string message = messageToCode(filename, codes);
 
-	string message = messageToCode(filename, codes);
-	//cout << message << endl;
+			writeFile(filename, frequency, queue, message);
 
-	writeFile(filename, frequency, queue, message);
+			cout << "Done, Compressed!" << endl;
+		}
+		else if (ans == "2") {
+			int frequency2[ascii] = { 0 };
+			string message2 = "";
 
-	int frequency2[ascii] = {0};
-	string message2 = "";
+			readCompressedText(filename, frequency2, message2);
 
-	readCompressedText(filename, frequency2, message2);
+			queue_t queue2;
 
-	queue_t queue2;
+			queuePushing(frequency2, queue2);
+			buildTree(queue2);
 
-	queuePushing(frequency2, queue2);
-	buildTree(queue2);
+			shared_ptr<Node> root2 = queue2.top();
+			string text = "";
+			makeChar(root2, message2, text);
+		}
+		else if (ans == "3") {
+			cout << "Enter filename: ";
+			cin >> filename;
+		}
+		else if (ans == "4") {
+			Flag = false;
+			cout << "Goodbye." << endl;
+		}
+		else cout << "Incorrect input!" << endl;
+	}
 
-	shared_ptr<Node> root2 = queue2.top();
-	string text = "";
-	makeChar(root2, message2, text);
+	return 0;
 }
