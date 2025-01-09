@@ -21,12 +21,12 @@ void readFile(string fileName, int(&frequency)[ascii]) {
 
 		char ch;
 		while (file.get(ch)) {
-			++frequency[(unsigned char)ch]; // вес кажого символа
+			++frequency[(unsigned char)ch]; // вес каждого символа
 		}
 	}
 }
 
-struct Node { // узел	
+struct Node {
 	unsigned char ch{ 0 };
 	int frequency{ 0 };
 	shared_ptr<Node> right{ nullptr };
@@ -38,7 +38,7 @@ public:
 	unsigned char getCh() const { return ch; }
 };
 
-struct CompareNode { // чтобы приоритетная очередь корректно сравнивала УКАЗАТЕЛИ на узлы
+struct CompareNode {
 	bool operator()(const shared_ptr<Node>& left, const shared_ptr<Node>& right) const {
 		return left->frequency > right->frequency;
 	}
@@ -52,14 +52,6 @@ void makeCodes(const shared_ptr<Node>& node, const string& prefix, vector<string
 	makeCodes(node->right, prefix + "1", codes);
 }
 
-void printTree(const shared_ptr<Node>& node, const string& prefix = "") { // ПРОВЕРКА: дерево Хаффмана
-	if (!node) return;
-	if (node->left == nullptr && node->right == nullptr)
-		cout << "'" << node->ch << "' (" << node->frequency << ") : " << prefix << endl;
-	printTree(node->left, prefix + "0");
-	printTree(node->right, prefix + "1");
-}
-
 using queue_t = priority_queue<shared_ptr<Node>, vector<shared_ptr<Node>>, CompareNode>;
 
 void queuePushing(int(&frequency)[ascii], queue_t& queue) {
@@ -71,27 +63,12 @@ void queuePushing(int(&frequency)[ascii], queue_t& queue) {
 }
 
 void buildTree(queue_t& queue) {
-	while (queue.size() > 1) { // тк последняя итерация 2 эл-нта => 1 эл-нт
-		shared_ptr<Node> left = queue.top(); // можно юзать auto и все ок, но я явно написал тип для лучшего понимания
+	while (queue.size() > 1) {
+		shared_ptr<Node> left = queue.top();
 		queue.pop();
 		shared_ptr<Node> right = queue.top();
 		queue.pop();
-
 		queue.push(make_shared<Node>(left, right));
-	}
-}
-
-void frequencyTest(int(&frequency)[ascii]) { // ПРОВЕРКА: вывод сколько веса символов ascii
-	for (int i = 0; i < ascii; ++i) {
-		if (frequency[i] > 0) {
-			cout << frequency[i] << " " << (char)i << endl;
-		}
-	}
-}
-
-void codesTest(vector<string> codes) { // ПРОВЕРКА: символов и их кодов в векторе
-	for (int i = 0; i < codes.size(); ++i) {
-		cout << i << ": " << codes[i] << endl;
 	}
 }
 
@@ -121,13 +98,11 @@ void writeFile(const string& filename, int(&frequency)[ascii], const queue_t& qu
 	}
 
 	unsigned char count = count_if(frequency, frequency + ascii, [](const int& value) { return (value != 0); });
-	//cout << "Count: " << (int)count << endl;
 
 	file.write(reinterpret_cast<char*>(&count), sizeof count);
 
 	for (int i = 0; i < ascii; ++i) {
 		if (frequency[i] > 0) {
-			//cout << "[" << (unsigned char)i << "]" << " = " << frequency[i] << endl;
 			unsigned char ch = static_cast<unsigned char>(i);
 			file.write(reinterpret_cast<char*>(&ch), sizeof ch);
 			file.write(reinterpret_cast<char*>(&frequency[i]), sizeof frequency[i]);
@@ -163,7 +138,6 @@ void readCompressedText(string& filename, int(&frequency)[ascii], string& messag
 
 	unsigned char count = 0;
 	file.read(reinterpret_cast<char*>(&count), sizeof count);
-	//cout << "New count: " << (int)count << endl;
 
 	int i = 0;
 	while (i < count) {
@@ -173,15 +147,8 @@ void readCompressedText(string& filename, int(&frequency)[ascii], string& messag
 		int freq = 0;
 		file.read(reinterpret_cast<char*>(&freq), sizeof freq);
 		frequency[ch] = freq;
-		//cout << "[" << ch << "]" << " = " << frequency[ch] << endl;
 		++i;
 	}
-
-	/*for (int j = 0; j < ascii; ++j) {
-		if (frequency[j] > 0) {
-			cout << "[" << (char)j << "]" << " = " << frequency[j] << endl;
-		}
-	}*/
 
 	int byte_count = 0;
 	unsigned char modulo = 0;
@@ -204,11 +171,9 @@ void readCompressedText(string& filename, int(&frequency)[ascii], string& messag
 		bitset<8> b(byte);
 		message += b.to_string().substr(8 - modulo, 8);
 	}
-
-	//cout << message << endl;
 }
 
-void makeChar(const shared_ptr<Node>& root, const string& message, string& text) {
+void makeChar(const shared_ptr<Node>& root, const string& message, string& text, string& filename) {
 	shared_ptr<Node> node = root;
 
 	for (int i = 0; i < message.size(); ++i) {
@@ -232,7 +197,17 @@ void makeChar(const shared_ptr<Node>& root, const string& message, string& text)
 			}
 		}
 	}
-	cout << "Text: \"" << text << "\"" << endl;
+
+	string outputFilename = "decoded_" + filename;
+	ofstream outputFile(outputFilename);
+	if (outputFile.is_open()) {
+		outputFile << text;
+		outputFile.close();
+		cout << "Text decoded and saved to " << outputFilename << endl;
+	}
+	else {
+		cerr << "Error: Cannot create output file." << endl;
+	}
 }
 
 int main() {
@@ -257,7 +232,7 @@ int main() {
 			queuePushing(frequency, queue);
 			buildTree(queue);
 
-			shared_ptr<Node> root = queue.top(); // последний выживший эл-нт. Само дерево
+			shared_ptr<Node> root = queue.top();
 
 			vector<string> codes(0x100, "");
 
@@ -282,7 +257,7 @@ int main() {
 
 			shared_ptr<Node> root2 = queue2.top();
 			string text = "";
-			makeChar(root2, message2, text);
+			makeChar(root2, message2, text, filename);
 		}
 		else if (ans == "3") {
 			cout << "Enter filename: ";
